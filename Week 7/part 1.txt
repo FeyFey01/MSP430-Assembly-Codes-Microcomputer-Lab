@@ -1,0 +1,317 @@
+;-------------------------------------------------------------------------------
+; MSP430 Assembler Code Template for use with TI Code Composer Studio
+;
+;
+;-------------------------------------------------------------------------------
+            .cdecls C,LIST,"msp430.h"       ; Include device header file
+
+;-------------------------------------------------------------------------------
+            .def    RESET                   ; Export program entry-point to
+                                            ; make it known to linker.
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+            .text                           ; Assemble into program memory.
+            .retain                         ; Override ELF conditional linking
+                                            ; and retain current section.
+            .retainrefs                     ; And retain any sections that have
+                                            ; references to current section.
+
+;-------------------------------------------------------------------------------
+RESET       mov.w   #__STACK_END,SP         ; Initialize stackpointer
+StopWDT     mov.w   #WDTPW|WDTHOLD,&WDTCTL  ; Stop watchdog timer
+
+
+;-------------------------------------------------------------------------------
+; Main loop here
+;-------------------------------------------------------------------------------
+
+Setup
+	mov.b #11111111b, &P1DIR
+	mov.b #00000000b, &P1OUT
+	bis.b #020h, &P2IE         ; Enable interrupt on P2.5
+	and.b #0DFh, &P2SEL
+	and.b #0DFh, &P2SEL2
+	bis.b #020h, &P2IES        ; High-to-low edge trigger
+
+	mov.w #algorithm_parameters, R13
+	mov.b @R13+, R15           ; p
+	mov.b @R13+, R4            ; q
+	push R15
+	push R4
+	call #func_mult
+	pop R15                    ; M = p * q
+	pop R4
+	mov.b @R13+, R14           ; s (seed)
+	clr &P2IFG                 ; Clear interrupt flag
+	eint                       ; Enable interrupts
+
+
+main
+	mov.w #segmentArray, R4
+	mov.w #segmentArrayEnd, R5
+	push R4
+	push R5
+	call #func_segmentDisplay  ; Main display loop
+
+func_segmentDisplay
+	mov.w 2(SP), R5            ; End of array
+displayInit
+	mov.w 4(SP), R4            ; Start of array
+	mov.w #1, R6
+
+displayLoop
+	mov.w #displayHelperArray, R7 ; Map digits to segments
+	mov.w #0, &P2DIR              ; Clear digit selector
+	mov.b @R4+, R8                ; Load next digit
+	add.w R8, R7                  ; Map to segment
+	mov.b @R7, &P1OUT             ; Display segment
+	mov.w R6, &P2DIR              ; Enable corresponding digit
+	rla R6                        ; Shift to next digit
+	cmp R4, R5                    ; Check if end of array reached
+	jne displayLoop               ; Continue loop if not done
+
+	jmp displayInit               ; Restart loop for next array
+
+
+; Interrupt Service Routine (ISR)
+ISR
+	dint                        ; Disable interrupts
+	push R4
+	push R5
+	push R6
+	push R7
+
+	; Calculate r = s^2
+	push R14
+	mov.w #2, R4
+	push R4
+	call #func_power
+	mov.w 0(SP), R4
+	pop R7
+	pop R7
+
+	push R4
+	push R15
+
+	; Perform M % s
+	call #func_div_mod
+
+	mov.w 2(SP), R14  ; Mod result
+	pop R7
+	pop R7
+
+
+	; Convert to BCD and display
+	mov.w #segmentArray, R4
+	mov.w #segmentArrayEnd, R5
+	mov.w #algorithm_parameters, R13
+	mov.b R14, 2(R13)
+	push R14
+	push R4
+	push R5
+	call #func_binary_to_bcd
+
+	pop R7
+	pop R7
+	pop R7
+	pop R7
+	pop R6
+	pop R5
+	pop R4
+	clr &P2IFG              ; Clear interrupt flag
+	eint                    ; Enable interrupts
+	reti                    ; Return from interrupt
+
+; Helper functions
+;-------------------------------------------------------------------------------
+; BINARY_TO_BCD
+func_binary_to_bcd
+	push R8
+	mov.w 6(SP), R4         ; Start of array
+	mov.w 4(SP), R6         ; End of array
+	sub   R4, R6            ; Array size
+	mov.w #10, R4           ; Set divisor to 10
+	push R6                 ; Save array size
+	dec.w R6                ; Decrement size
+	push R4                 ; Save divisor
+	push R6                 ; Save (size-1)
+	call #func_power       ; Compute power of 10
+	pop R7                  ; Divisor
+	pop R4
+	pop R6                  ; Restore array size
+
+	mov.w 8(SP), R4         ; x value
+	mov.w 6(SP), R5         ; Array start
+
+conversion_loop
+	mov.w 4(SP), R6         ; Get end of array
+	cmp R5, R6              ; Check if start equals end
+	jeq binary_to_bcd_end   ; If equal, end the loop
+	push R7                 ; Save divisor
+	push R5                 ; Save array iterator
+	push R4                 ; Save x
+	push R7                 ; Save divisor
+	call #func_div_mod      ; Compute mod and division
+	pop R4                  ; Update x with division result
+	pop R6                  ; Get remainder
+	pop R5                  ; Restore array iterator
+	pop R7                  ; Restore divisor
+
+	mov.b R4, 0(R5)         ; Store digit at array location
+	inc R5                  ; Increment array pointer
+	mov R6, R4              ; Update x with remainder
+	mov #10, R6             ; Set divisor to 10
+	push R4                 ; Save x
+	push R5                 ; Save array iterator
+	push R7                 ; Save divisor
+	push R6                 ; Save new divisor
+	call #func_div_mod      ; Divide by 10
+	pop R7                  ; Restore divisor
+	pop R5                  ; Discard mod
+	pop R5                  ; Restore array iterator
+	pop R4                  ; Restore x
+
+	jmp conversion_loop     ; Continue the loop
+
+binary_to_bcd_end
+	ret                      ; Return from function
+;-------------------------------------------------------------------------------
+
+; DIV AND MOD (A % B, A / B)
+func_div_mod
+	push R8                 ; Save remainder register
+	push R9                 ; Save division result
+	mov.w 8(SP), R4         ; Load A (dividend)
+	mov.w 6(SP), R5         ; Load B (divisor)
+	mov.w #0, R9            ; Initialize quotient (result)
+
+L1
+	cmp R4, R5
+	jnc continue_L1
+	jeq continue_L1
+	jmp end_loop
+
+continue_L1
+	sub R5, R4              ; Subtract B from A
+	inc R9                  ; Increment quotient
+	jmp L1
+
+end_loop
+	mov R9, R5              ; Store quotient in R5
+	pop R9                  ; Restore R9
+	pop R8                  ; Restore R8
+
+	mov R5, 2(SP)           ; Store quotient in the stack
+	mov R4, 4(SP)           ; Store remainder in the stack
+	ret                     ; Return
+
+;-------------------------------------------------------------------------------
+; POWER (x^y)
+func_power
+	mov.w 4(SP), R4         ; Load base x
+	mov.w 2(SP), R5         ; Load exponent y
+	mov.w #1, R6            ; Initialize result to 1
+
+power_loop
+	cmp #0, R5
+	jeq power_end           ; End if exponent is 0
+	dec R5                  ; Decrement exponent
+	push R5
+	push R4                 ; Operand for multiplication
+	push R6                 ; Result
+	call #func_mult         ; Multiply x * res
+	pop R6                  ; Restore result
+	pop R4
+	pop R5
+	jmp power_loop
+
+power_end
+	mov.w R6, 2(SP)         ; Save final result
+	ret                     ; Return
+;-------------------------------------------------------------------------------
+; ADD
+func_add
+	mov 4(SP), R4           ; Load a value
+	mov 2(SP), R5           ; Load b value
+	add R5, R4              ; R4 = a + b
+	mov R4, 2(SP)           ; Save result in the stack
+	ret                     ; Return
+;-------------------------------------------------------------------------------
+; SUBTRACT
+func_sub
+	mov 4(SP), R4           ; Load a value
+	mov 2(SP), R5           ; Load b value
+	sub R5, R4              ; R4 = a - b
+	mov R4, 2(SP)           ; Save result in the stack
+	ret                     ; Return
+;-------------------------------------------------------------------------------
+; MULTIPLY (a * b)
+func_mult
+	mov #0, R5              ; Initialize result to 0
+	mov 2(SP), R6           ; Load b value
+	mov #0, R7              ; Initialize loop counter
+
+MLoop
+	mov 4(SP), R4           ; Load a value
+	cmp R7, R6              ; Compare counter with b
+	jeq end_Mloop           ; If equal, exit loop
+	push R4
+	push R5
+	call #func_add          ; Add a to result
+	mov 0(SP), R5           ; Update result
+	pop R4
+	pop R4
+	inc R7                  ; Increment counter
+	jmp MLoop
+
+end_Mloop
+	mov R5, 2(SP)           ; Store result in the stack
+	ret                     ; Return
+;-------------------------------------------------------------------------------
+; DIVIDE (A / B)
+func_div
+	mov 4(SP), R4           ; Load a value
+	mov #0h, R6             ; Initialize result to 0
+
+DLoop
+	mov 2(SP), R5           ; Load b value
+	cmp R4, R5              ; Compare a and b
+	jeq cont_div            ; If equal, end loop
+	jc end_Dloop            ; If a < b, end loop
+
+cont_div
+	push R4
+	push R5
+	call #func_sub          ; Subtract b from a
+	inc R6                  ; Increment result
+	mov 0(SP), R4           ; Update a
+	pop R5
+	pop R5
+	jmp DLoop
+
+end_Dloop
+	mov R6, 2(SP)           ; Store result in the stack
+	ret                     ; Return
+;-------------------------------------------------------------------------------
+
+					 .data
+displayHelperArray   .byte 3Fh, 06h, 5Bh, 4Fh, 66h, 6Dh, 7Dh, 07h, 7Fh, 6Fh
+segmentArray         .space 4
+segmentArrayEnd
+algorithm_parameters .byte 997d, 1013d, 13d
+
+;-------------------------------------------------------------------------------
+; Interrupt Vectors
+;-------------------------------------------------------------------------------
+			.sect ".reset"		                 ; Reset Vector
+			.short RESET                          ; Reset handler address
+
+			.sect ".int03"                        ; Port 2 Interrupt Vector
+			.short ISR                            ; ISR (Interrupt Service Routine) address
+;-------------------------------------------------------------------------------
+; Stack Pointer definition
+;-------------------------------------------------------------------------------
+            .global __STACK_END
+            .sect   .stack
+

@@ -1,0 +1,123 @@
+; Initialize arrays and memory locations
+Setup
+
+	mov #10, r5
+	mov #-5, r6
+	mov #1, r7
+	mov #3, r8
+
+; Main loop
+Mainloop
+
+	call #Add
+
+	call #Subtract
+
+	call #Multiply
+
+	call #Divide
+
+	jmp end
+
+
+;Add(a, b): a + b
+Add		push r5             ; Save registers
+		push r6
+		push r7
+
+		add r6, r5          ;r5=r5+r6
+		mov r5, 0(SP)
+
+		pop r7
+		pop r6              ; Restore registers
+		pop r5
+		ret                 ; Return to caller
+
+; Subtract(a, b): a - b
+Subtract
+		push r5             ; Save registers
+		push r6
+		push r7
+
+		sub r6, r5          ;r5 =r6-r5 ,substract source from destination
+		mov r5, 0(SP)
+
+		pop r7
+		pop r6              ; it pops and stores into destination register r6
+		pop r5		;this will be my result, it will be popped second time
+		ret                 ; Return to caller
+
+; Multiply(a, b): a * b
+Multiply
+
+		push r5             ; Save registers
+		push r6
+		push r8
+		push r7
+
+		cmp #0, r6
+		jge yer_degisme
+		push r5
+		mov r6, r5
+		pop r6
+
+yer_degisme
+		mov r5, r8
+
+		mov #0, 0(SP)          ; Initialize result to 0
+
+Multiply_Loop
+		cmp #1, r6          ; Check if b == 0
+		jeq MultiplyFinish   ; If yes, finish
+
+		push r6
+		mov r8, r6
+		call #Add
+		mov r7, r5
+		pop r6
+
+		dec r6             ; Decrement b
+		jmp Multiply_Loop
+
+
+MultiplyFinish
+
+		mov r5, 0(SP)
+
+		pop r7
+		pop r8
+		pop r6
+		pop r5
+		ret
+
+
+end
+		jmp end
+
+
+; Divide(a, b)=a / b
+Divide
+		push r5             ; Save registers
+		push r6
+		push r7
+
+		mov #0, 0(SP)          ;Initialize result to 0
+
+Divide_Loop
+		cmp r6, r5          ; Check if a >= b
+		jl Divide_Finish      ; If not, finish
+
+		call #Subtract
+		mov r7, r5
+
+		inc 0(SP)              ; Increment result
+		jmp Divide_Loop     ; Repeat
+
+Divide_Finish
+
+		pop r7
+		pop r6
+		pop r5
+		ret
+
+

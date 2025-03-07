@@ -1,0 +1,208 @@
+;-------------------------------------------------------------------------------
+; MSP430 Assembler Code Template for use with TI Code Composer Studio
+;
+;
+;-------------------------------------------------------------------------------
+            .cdecls C,LIST,"msp430.h"       ; Include device header file
+            
+;-------------------------------------------------------------------------------
+            .def    RESET                   ; Export program entry-point to
+                                            ; make it known to linker.
+;-------------------------------------------------------------------------------
+            .text                           ; Assemble into program memory.
+            .retain                         ; Override ELF conditional linking
+                                            ; and retain current section.
+            .retainrefs                     ; And retain any sections that have
+                                            ; references to current section.
+
+;-------------------------------------------------------------------------------
+RESET       mov.w   #__STACK_END,SP         ; Initialize stackpointer
+StopWDT     mov.w   #WDTPW|WDTHOLD,&WDTCTL  ; Stop watchdog timer
+			mov.b	#0d, P2SEL
+
+
+;-------------------------------------------------------------------------------
+; Main loop here
+;-------------------------------------------------------------------------------
+SetupCTR	mov		#1048576/100, &TA0CCR0 ; hz writed on pdf
+			mov		#0x0210, &TA0CTL ; set the register smclk=1, count up
+			mov		#0000000000010000b , &TA0CCTL0; KESME IZNI
+
+SetupTime	mov.w	#000h, r4 ; centisec
+			mov.w	#000h, R5 ; decisec
+			mov.w	#000h, r6 ; sec
+			mov.w	#000h, r7 ; decasec
+Se			mov.w	#000h, r10 ; centisec
+			mov.w	#000h, R11; decisec
+			mov.w	#000h, r12 ; sec
+			mov.w	#000h, r13; decasec
+
+SetupP1	 	mov.b 	#0FFh,&P1DIR
+		 	mov.b	#00Fh,&P2DIR ; p2 7,6,5,4 input
+			eint
+
+Mainloop
+
+			mov  &best, r12
+
+CheckR1 	eint
+    		cmp.w   #10, R4                 ; Compare R1 with 10
+    		jne     CheckR2                 ; If not equal, skip to CheckR2
+    		mov.w   #0, R4                  ; Reset R1 to 0
+    		inc.w   R5                      ; Increment R2
+
+CheckR2
+    		cmp.w   #10, R5                 ; Compare R2 with 10
+    		jne     CheckR3                 ; If not equal, skip to CheckR3
+     		mov.w   #0, R5                  ; Reset R2 to 0
+    		inc.w   R6                      ; Increment R3
+
+CheckR3
+    		cmp.w   #10, R6                 ; Compare R3 with 10
+    		jne     CheckR4                 ; If not equal, skip to CheckR4
+    		mov.w   #0, R6                  ; Reset R3 to 0
+    		inc.w   R7                      ; Increment R4
+
+CheckR4
+    		cmp.w   #10, R7                 ; Compare R4 with 10
+    		jne     cont               		; If not equal, skip to DoneCheck
+    		mov.w   #0, R4                  ; Reset R4 to 0
+    		mov.w   #0, R5                  ; Reset R1 to 0
+    		mov.w   #0, R6                  ; Reset R2 to 0
+    		mov.w   #0, R7                  ; Reset R3 to 0
+
+
+cont		mov.b	#00000000b, &P1OUT ;turn off switching
+			mov.b 	#00000001b, &P2OUT
+			mov.b	array(r7), &P1OUT ;decasecond
+
+			mov.b	#00000000b, &P1OUT ;turn off switching
+			mov.b 	#00000010b, &P2OUT
+			mov.b	array(r6), &P1OUT ;second
+
+			mov.b	#00000000b, &P1OUT ;turn off switching
+			mov.b 	#00000100b, &P2OUT
+			mov.b	array(r5), &P1OUT ;decisecond
+
+			mov.b	#00000000b, &P1OUT ;turn off switching
+			mov.b 	#00001000b, &P2OUT
+			mov.b	array(r4), &P1OUT ;centisecond
+
+start_i		bit.b #00100000b, &P2IN ; Bit 6'i kontrol et
+			jz    cont_main            ; Eğer 0 ise devam
+
+save_i		bit.b #01000000b, &P2IN ; Bit 7-6'i kontrol et
+			jz    start_call            ; Eğer 0 ise devam
+			call #CompareRegisters
+
+start_call	call #start
+
+cont_main	jmp 	Mainloop
+
+
+TISR
+			dint
+
+			inc.w	r4
+
+						;reset
+			;bit.b #00000000b, &P2IN ; Bit 5'i kontrol et
+			;jz    stop_i            ; Eğer 0 ise contunie
+			;call #reset
+
+			;stop
+stop_i		bit.b #01000000b, &P2IN ; Bit 7'i kontrol et
+			jz    continue            ; Eğer 0 ise devamke
+			call #stop		;yoksa stop
+
+			;start
+
+			;save
+
+
+continue
+			mov		#0000000000010000b , &TA0CCTL0; KESME IZNI
+			eint
+			reti
+
+
+
+reset		mov.w	#000h, r4 ; centisec
+			mov.w	#000h, r5 ; decisec
+			mov.w	#000h, r6 ; sec
+			mov.w	#000h, r7 ; decasec
+			ret
+
+
+
+stop		mov		#0x0200, &TA0CTL ;makes timer stop
+			ret
+
+start		mov		#0x0210, &TA0CTL ;makes timer go up
+			ret
+
+CompareRegisters
+
+            cmp.w   R7, R13                  ;
+	    	jeq     cmpR3
+            jge      DoneCompare             ; Eğer R4 < best[0] ise karşılaştırmayı bitir
+            jl     SaveSubroutine                 ; Eğer R4 > best[0] ise bir sonraki basamağa geç
+
+cmpR3
+            cmp.w   R6, R12                  ;
+	   		jeq     cmpR2
+            jge      DoneCompare             ; Eğer R4 < best[0] ise karşılaştırmayı bitir
+            jl     SaveSubroutine                  ; Eğer R3 > best[1] ise bir sonraki basamağa geç
+
+cmpR2
+            cmp.w   R5, R11                  ;
+	    	jeq     cmpR1
+            jge      DoneCompare             ; Eğer R4 < best[0] ise karşılaştırmayı bitir
+            jl     SaveSubroutine                  ; Eğer R2 > best[2] ise bir sonraki basamağa geç
+
+cmpR1
+
+            cmp.w   R4, R10                  ;
+            jge      DoneCompare             ; Eğer R4 < best[0] ise karşılaştırmayı bitir
+            jl     SaveSubroutine              ; Eğer R1 < best[3] ise karşılaştırmayı bitir
+            					; Eğer R1 > best[3] ise save subroutines'e geç
+
+SaveSubroutine
+
+            mov.b   R4,r10              ; R1'i best[3]'a kaydet
+
+            mov.b   R5, r11             ; R2'yi best[2]'e kaydet
+
+            mov.b   R6, r12             ; R3'ü best[1]'ye kaydet
+
+            mov.b   R7, r13             ; R4'ü best[0]'e kaydet
+            jmp     DoneCompare             ; Save işlemi bittikten sonra çık
+
+DoneCompare
+            ; Ana programa dön
+            ret
+
+
+
+
+			.data
+seconds				.byte 00h
+centiseconds		.byte 00h
+array				.byte 00111111b , 00000110b , 01011011b , 01001111b , 01100110b, 01101101b , 01111101b , 00000111b , 01111111b , 01101111b
+lastElement
+best        		.byte   00h, 00h, 00h, 00h
+
+;-------------------------------------------------------------------------------
+; Stack Pointer definition
+;-------------------------------------------------------------------------------
+            .global __STACK_END
+            .sect   .stack
+            
+;-------------------------------------------------------------------------------
+; Interrupt Vectors
+;-------------------------------------------------------------------------------
+            .sect   ".reset"                ; MSP430 RESET Vector
+            .short  RESET
+            
+            .sect ".int09"
+            .short TISR

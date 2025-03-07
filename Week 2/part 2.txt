@@ -1,0 +1,34 @@
+		; part 2
+
+		mov.b	#11111110b, &P1DIR	; p2 in
+     		mov.b	#11111111b, &P2DIR ; p1 out
+
+     		;initial p2.2 on, p2.3 off
+     		bic.b   #11111111b, &P1IN     ; P2.4 is input
+     		mov.b   #00000100b, &P2OUT ;;p2 is on initially
+
+Mainloop	mov.b	#50, R6	;to avoid situation for holdin on button, light wont
+			bit.b 	#00000001b,  &P1IN ;checking p1 pressed or not(test bits in destination)
+			jz		Mainloop ;if zero (pressed) go to onpressed to wait until switch is released
+			jmp Toggle
+
+OnPressed
+			mov.b   &P1IN, R5
+			and.b	#00000001, R5
+			bis.b 	#00000000b,  R5 ; Check if switch is released
+			jnz 	OnPressed ; wait until released
+			jmp Mainloop
+
+Toggle		bit.b 	#00000100b, &P2OUT ;is p2.2 on?
+			jnz		toggleP2_3;jump if Z not set
+			jmp		toggleP2_2
+
+toggleP2_3  mov.b	#00001000b, &P2OUT ;p2.2 close
+			jmp 	delay
+
+toggleP2_2  mov.b   #00000100b, &P2OUT;p2.2 open
+			jmp		delay
+
+delay		dec 	R6
+			jnz 	delay
+			jmp		OnPressed

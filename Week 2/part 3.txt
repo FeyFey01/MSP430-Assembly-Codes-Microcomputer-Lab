@@ -1,0 +1,39 @@
+	; part 3
+_start
+            mov.b   #0xFF, &P1DIR    		; port 1 as output
+            mov.b   #0x00, &P2DIR    		; port 2 as input
+            bic.b   #11111111b, &P2IN     ; P2.4 is input
+     		mov.b   #00000000b, &P1OUT ;;p2 is on initially
+
+            mov.b   #0, counter            	; Initialize count to 0 at address 0200h
+
+Mainloop	mov.b	#005000, R7	;to avoid situation for holdin on button, light wont
+            ; Check if button is pressed
+            bit.b   #00000001b, &P2IN    	; Check P2.1 button input
+            jz     Mainloop               	; button not pressed
+
+            inc.b   counter               	; Increment
+
+            cmp.b   #0x10, counter
+            jl      NoReset                	; If count < 16, skip reset
+            mov.b   #0, counter                 	; Reset
+
+NoReset
+            mov.b   counter, &P1OUT         ; Display
+
+delay		dec 	R7
+			jnz 	delay
+
+ButtonRelease
+			mov.b   &P2IN, R6
+			and.b	#00000001, R6
+			bis.b 	#00000000b,  R6 ; Check if switch is released
+			jnz 	ButtonRelease ; wait until released
+			mov.b	#005000, R7
+
+delay2		dec 	R7
+			jnz 	delay2
+			jmp Mainloop
+
+		.data
+counter .word 0

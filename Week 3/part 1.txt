@@ -1,0 +1,40 @@
+main
+    ; A ve B'yi yükle
+    mov.w A_var, R4       ; A
+    mov.w B_var, R5         ; B
+    mov.w C_var, R6         ; C = 0
+    mov.w D_var, R7         ; D = 0
+    mov.w R5, R6         ; C = B
+    mov.w R4, R7         ; D = A
+
+MultiplyC
+	mov.w R4, R8
+	rra  R8
+    cmp.w R8, R6        ; C >= A/2 mi?
+    jge CheckD           ; Eğer büyükse bir sonraki adıma git
+    add.w R6, R6         ; C = C * 2
+    jmp MultiplyC        ; Döngüye dön
+
+CheckD
+
+    cmp.w R6, R7         ; D >= C mi?
+    jl DivideC           ; Eğer küçükse C'yi böl
+    sub.w R6, R7         ; D = D - C
+    jmp CheckD           ; Döngüye dön
+
+DivideC
+    rra.w R6             ; C = C / 2
+    cmp.w R5, R7         ; D > b mı?
+    jge CheckD           ; Eğer büyükse döngüye dön
+
+Finish
+    mov.w R7, R8         ; Sonucu (mod) R8'e yaz
+    jmp $                ; Program sonu
+
+
+		.data
+A_var       .word 151      ; Bölünen (örnek değer)
+B_var       .word 8         ; Bölen (örnek değer)
+C_var       .word 0         ; Çarpan
+D_var       .word 0         ; Kalan
+TEMP    .word 0         ; Geçici değişken

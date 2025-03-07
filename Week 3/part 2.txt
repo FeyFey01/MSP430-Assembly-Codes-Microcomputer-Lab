@@ -1,0 +1,63 @@
+        .data
+hash    .space  58
+
+
+        .text
+main
+
+		mov.w #3, R6
+		mov.w #3, R7
+		mov.w #332, R8
+
+        mov.w   R6, R11
+        mov.w   #29, R12
+        call    #remainder
+
+        call    #insert_to_hash
+
+        mov.w   R7, R11
+        mov.w   #29, R12
+        call    #remainder
+
+        call    #insert_to_hash
+
+        mov.w   R8, R11
+        mov.w   #29, R12
+        call    #remainder
+
+        call    #insert_to_hash
+
+        jmp     end_success
+
+
+remainder
+        mov.w   R11, R13
+substract
+        cmp.w   R12, R13
+        jlo     finish
+        sub.w   R12, R13
+        jmp     substract
+finish
+        ret ; return to subroutine
+
+
+insert_to_hash
+        mov.w   #hash, R10 ; hash tables ınıtıal address
+        add.w   R13, R10
+probe_loop
+        tst.w   0(R10)
+        jz      insert
+
+        add.w   #2, R10
+        cmp.w   #hash+58, R10
+        jlo     probe_loop
+
+        jmp     hash_full
+
+insert
+        mov.w   R11, 0(R10)
+        ret
+
+end_success 	jmp end_success
+
+hash_full 		jmp hash_full

@@ -1,0 +1,13 @@
+		; Part1
+    		; Başlangıç ayarları
+    		mov.b   #00000000b, &P2DIR     ; P2.4 is input
+    		mov.b   #11111111b, &P1DIR     ; P1.4 is out
+    		mov.b   #00000000b, &P2IN     ; P2.4 is input
+    		mov.b   #00000000b, &P1OUT     ; P1.4 is out
+
+Mainloop	bit.b   #00000001b, &P2IN      ; control either it is pressed or not
+    		jz     Mainloop          ; jump if z set
+
+    		mov.b   #11111111b, &P1OUT     ; else light p1.4
+
+Loop		jmp     Loop     ; infinite loop after p1.4 is light

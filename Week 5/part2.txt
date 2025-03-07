@@ -1,0 +1,68 @@
+;part 2
+
+init_INT
+
+    bis.b #040h, &P2IE
+    and.b #0BFh, &P2SEL
+    and.b #0BFh, &P2SEL2
+
+    bis.b #040h, &P2IES
+    clr &P2IFG
+    eint
+
+start
+    mov.b #11111111b, &P1DIR
+    mov.b #00000000b, &P1OUT
+
+    mov.b #0, r10
+
+
+main_loop
+    cmp.b #0, mode        ; check counting mode
+    jnz odd_mode          ; if mode = 1, go to odd counting
+
+    ; even
+    mov.b #0, r10         ; start at 0
+    jmp count_loop
+
+odd_mode
+    mov.b #1, r10         ; start at 1
+
+count_loop
+    mov.b r10, r12        ; copy counter value to r12
+    mov.b array(r12), &P1OUT ; send value to 7-segment display
+
+    call #delay           ; wait for 1 second
+
+    add.b #2, r10
+    cmp.b #10, r10
+    jl count_loop
+    jmp main_loop
+
+
+delay
+    mov.w #0Ah, r14
+l2  mov.w #07A00h, r15
+l1  dec.w r15
+    jnz l1
+    dec.w r14
+    jnz l2
+    ret
+
+ISR
+    dint
+
+    xor.b #1, mode        ; toggle mode
+    clr &P2IFG
+	dec r10
+    eint
+    reti
+
+
+
+
+	  .data
+mode  .byte 0
+array .byte 00111111b, 00000110b, 01011011b, 01001111b, 01100110b, 01101101b, 01111101b, 00000111b, 01111111b, 01101111b
+lastElement
+            

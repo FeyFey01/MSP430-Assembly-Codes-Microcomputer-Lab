@@ -1,0 +1,105 @@
+;part 
+
+mainloop
+	
+
+; dotProd(A, B, i, N)
+; r5 = A addr, r6 = B addr, r7 = i, r8 = N
+dotProd
+    push r5          ; save regs
+    push r6
+    push r7
+    push r8
+    push r9
+
+    cmp r7, r8       ; i >= N?
+    jeq dotDone      ; if yes, done
+
+    mov r5, r10      ; r10 = A + i
+    add r7, r10
+    mov @r10, r11    ; r11 = A[i]
+
+    mov r6, r12      ; r12 = B + i
+    add r7, r12
+    mov @r12, r13    ; r13 = B[i]
+
+    mov r11, -2(r1)  ; push A[i]
+    mov r13, -4(r1)  ; push B[i]
+    call #Multiply    ; A[i] * B[i]
+    mov -2(r1), r14  ; r14 = result
+
+    inc r7           ; i++
+
+    call #dotProd    ; recursive call
+    mov -2(r1), r15  ; r15 = recursion result
+
+    mov r14, -2(r1)  ; push mul result
+    mov r15, -4(r1)  ; push recursion sum
+    call #Add    ; add them
+    mov -2(r1), r9   ; r9 = final sum
+
+    jmp dotDone
+
+dotDone
+    mov #0, r9       ; base case return 0
+
+    pop r9           ; restore regs
+    pop r8
+    pop r7
+    pop r6
+    pop r5
+    ret              ; back to caller
+    
+    
+; Multiply(a, b): a * b
+Multiply
+		push r5             ; Save registers
+		push r6
+		push r8
+		push r7
+
+		mov r5, r8
+
+		mov #0, 0(SP)          ; Initialize result to 0
+
+Multiply_Loop
+		cmp #1, r6          ; Check if b == 0
+		jeq MultiplyFinish   ; If yes, finish
+
+		push r6
+		mov r8, r6
+		call #Add
+		mov r7, r5
+		pop r6
+
+		dec r6             ; Decrement b
+		jmp Multiply_Loop
+
+
+MultiplyFinish
+
+		mov r5, 0(SP)
+
+		pop r7
+		pop r8
+		pop r6
+		pop r5
+		ret
+
+
+;Add(a, b): a + b
+Add		push r5             ; Save registers
+		push r6
+		push r7
+
+		add r6, r5          ;r5=r5+r6
+		mov r5, 0(SP)
+
+		pop r7
+		pop r6              ; Restore registers
+		pop r5
+		ret                 ; Return to caller
+
+
+    array A_arr .word 15 , 3 , 7 , 5
+    array B_arr .word 2 , −1, 7 , 3

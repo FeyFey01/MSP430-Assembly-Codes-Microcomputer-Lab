@@ -1,0 +1,39 @@
+;part 1
+
+start
+    mov.b #11111111b, &P1DIR
+    mov.b #00000000b, &P1OUT
+
+    mov.b #0, r10
+
+
+main_loop
+    mov.b r10, r12
+    mov.b array(r12), &P1OUT ; 7-segment kodu port 1'e gönderildi
+
+    call #delay          ; 1 saniye bekleme
+
+    inc.b r10            ; sayaç arttırıldı
+    cmp.b #10, r10       ; sayaç 10 oldu mu kontrol et
+    jeq reset_counter    
+
+    jmp main_loop      
+
+reset_counter
+    mov.b #0, r10
+    jmp main_loop
+
+; 1 saniyelik gecikme fonksiyonu
+delay
+    mov.w #0Ah, r14     ; dış döngü sayacı
+l2  mov.w #07A00h, r15  ; iç döngü sayacı
+l1  dec.w r15            ; iç sayaç azalt
+    jnz l1               ; iç döngü bitene kadar devam et
+    dec.w r14            ; dış sayaç azalt
+    jnz l2               ; dış döngü bitene kadar devam et
+    ret
+
+	  .data
+array .byte 00111111b, 00000110b, 01011011b, 01001111b, 01100110b, 01101101b, 01111101b, 00000111b, 01111111b, 01101111b
+lastElement
+                                            
